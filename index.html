@@ -253,8 +253,8 @@
 
 
 <div id="instructions">
-    🖱️ Rotate: Left Drag &nbsp;|&nbsp; Pan: Right Drag &nbsp;|&nbsp; Zoom: Scroll &nbsp;|&nbsp;
-    ⌨️ 1–5: Views &nbsp;|&nbsp; ↑↓←→: Pan &nbsp;|&nbsp; S: Save PNG
+    🖱️ Rotate: Left &nbsp;|&nbsp; Pan: Right &nbsp;|&nbsp; Zoom: Scroll &nbsp;|&nbsp;
+    ⌨️ 1–5: Views &nbsp;|&nbsp; ↑↓←→: Pan
 </div>
 
 <!-- Inline OrbitControls + CSS2DRenderer for r128 (avoids CDN cross-script failures) -->
@@ -573,6 +573,17 @@ window.onload = function () {
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(35, 20, 25);
 
+    // Orthographic camera — size updated on zoom via controls
+    const orthoSize = 40;
+    const aspect = window.innerWidth / window.innerHeight;
+    const orthoCamera = new THREE.OrthographicCamera(
+        -orthoSize * aspect, orthoSize * aspect,
+         orthoSize, -orthoSize, 0.1, 1000
+    );
+    orthoCamera.position.set(35, 20, 25);
+
+    let activeCamera = camera; // start in perspective
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -588,6 +599,10 @@ window.onload = function () {
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 0, 5);
     controls.update();
+
+    const orthoControls = new THREE.OrbitControls(orthoCamera, renderer.domElement);
+    orthoControls.target.set(0, 0, 5);
+    orthoControls.update();
 
     // Plain axis lines (no built-in letter labels like AxesHelper has)
     function makeAxis(from, to, color) {
@@ -965,19 +980,27 @@ window.onload = function () {
 
     // ── Resize handler ────────────────────────────────────────────────────────
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const asp = w / h;
+        camera.aspect = asp;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        // controls does not need explicit resize — it reads domElement size at interaction time
+        orthoCamera.left   = -orthoSize * asp;
+        orthoCamera.right  =  orthoSize * asp;
+        orthoCamera.top    =  orthoSize;
+        orthoCamera.bottom = -orthoSize;
+        orthoCamera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+        labelRenderer.setSize(w, h);
     });
 
     // ── Render loop ───────────────────────────────────────────────────────────
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
-        renderer.render(scene, camera);
-        labelRenderer.render(scene, camera);
+        orthoControls.update();
+        renderer.render(scene, activeCamera);
+        labelRenderer.render(scene, activeCamera);
     }
 
     syncInitialState();
@@ -989,7 +1012,7 @@ window.onload = function () {
         const w = window.innerWidth;
         const h = window.innerHeight;
 
-        renderer.render(scene, camera);
+        renderer.render(scene, activeCamera);
 
         html2canvas(labelRenderer.domElement, {
             backgroundColor: null,
@@ -1021,6 +1044,10 @@ window.onload = function () {
         camera.position.copy(pos);
         camera.lookAt(TARGET);
         controls.update();
+        orthoControls.target.copy(TARGET);
+        orthoCamera.position.copy(pos);
+        orthoCamera.lookAt(TARGET);
+        orthoControls.update();
     }
 
     window.addEventListener('keydown', e => {
@@ -1031,6 +1058,24 @@ window.onload = function () {
         switch (e.key) {
             // ── Save ──────────────────────────────────────────────────────────
             case 's': case 'S': downloadPNG(); break;
+
+            // ── Toggle orthographic (undocumented) ────────────────────────────
+            case 'o': case 'O': {
+                if (activeCamera === camera) {
+                    orthoCamera.position.copy(camera.position);
+                    orthoCamera.quaternion.copy(camera.quaternion);
+                    orthoControls.target.copy(controls.target);
+                    orthoControls.update();
+                    activeCamera = orthoCamera;
+                } else {
+                    camera.position.copy(orthoCamera.position);
+                    camera.quaternion.copy(orthoCamera.quaternion);
+                    controls.target.copy(orthoControls.target);
+                    controls.update();
+                    activeCamera = camera;
+                }
+                break;
+            }
 
             // ── Toggle system labels (undocumented) ───────────────────────────
             case 'h': case 'H': {
@@ -1046,10 +1091,10 @@ window.onload = function () {
                 setView(new THREE.Vector3(-35, 20, 25)); break;
             case '2': // Top (XZ plane, looking down)
                 setView(new THREE.Vector3(0, CAM_DIST, TARGET.z)); break;
-            case '3': // Front (XY plane, looking along +Z)
-                setView(new THREE.Vector3(0, 0, TARGET.z - CAM_DIST)); break;
-            case '4': // Side (YZ plane, looking along +X)
+            case '3': // Side (YZ plane, looking along +X)
                 setView(new THREE.Vector3(CAM_DIST, 0, TARGET.z)); break;
+            case '4': // Front (XY plane, looking along +Z)
+                setView(new THREE.Vector3(0, 0, TARGET.z - CAM_DIST)); break;
             case '5': // Side opposite
                 setView(new THREE.Vector3(-CAM_DIST, 0, TARGET.z)); break;
 
