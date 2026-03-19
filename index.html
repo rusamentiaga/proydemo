@@ -7,6 +7,7 @@
 
     <!-- Three.js r128 from cdnjs (guaranteed global THREE namespace) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- KaTeX for Math Rendering -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
@@ -244,7 +245,8 @@
 
 
 <div id="instructions">
-    🖱️ Rotate: Left Drag &nbsp;|&nbsp; 🖱️ Pan: Right Drag &nbsp;|&nbsp; 📜 Zoom: Scroll
+    🖱️ Rotate: Left Drag &nbsp;|&nbsp; Pan: Right Drag &nbsp;|&nbsp; Zoom: Scroll &nbsp;|&nbsp;
+    ⌨️ 1–5: Views &nbsp;|&nbsp; ↑↓←→: Pan &nbsp;|&nbsp; S: Save PNG
 </div>
 
 <!-- Inline OrbitControls + CSS2DRenderer for r128 (avoids CDN cross-script failures) -->
@@ -501,9 +503,14 @@ window.onload = function () {
             els['disp'+k.toUpperCase()].textContent = state[k].toFixed(1);
             updateDiagram();
         });
+        els[k].addEventListener('pointerup', e => e.target.blur());
     });
     ['showX','showY','showBox'].forEach(k => {
-        els[k].addEventListener('change', e => { state[k] = e.target.checked; updateDiagram(); });
+        els[k].addEventListener('change', e => {
+            state[k] = e.target.checked;
+            updateDiagram();
+            e.target.blur();
+        });
     });
 
     // ── Three.js scene ────────────────────────────────────────────────────────
@@ -514,7 +521,7 @@ window.onload = function () {
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(35, 20, 25);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     container.appendChild(renderer.domElement);
@@ -896,7 +903,7 @@ window.onload = function () {
 
         // Fixed labels
         lblCOP.obj.position.set(0.5, -1.8, 0);
-        lblOptAxis.obj.position.set(0, -1.2, Z + 8);
+        lblOptAxis.obj.position.set(0, -0.8, Z + 5);
         const boxHWlbl = SENSOR_HW;
         lblImgPlane.obj.position.set(0, boxHWlbl + 1.2, -f);
 
@@ -924,6 +931,90 @@ window.onload = function () {
     syncInitialState();
     updateDiagram();
     animate();
+
+    // ── PNG export — press S ──────────────────────────────────────────────────
+    function downloadPNG() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        // 1. Render WebGL scene into its buffer
+        renderer.render(scene, camera);
+
+        // 2. Rasterise the CSS2D label overlay with html2canvas
+        html2canvas(labelRenderer.domElement, {
+            backgroundColor: null, // transparent
+            width: w,
+            height: h,
+            scale: window.devicePixelRatio,
+            logging: false,
+        }).then(labelCanvas => {
+            // 3. Composite: WebGL bottom, labels on top
+            const out = document.createElement('canvas');
+            out.width  = w * window.devicePixelRatio;
+            out.height = h * window.devicePixelRatio;
+            const ctx = out.getContext('2d');
+            ctx.drawImage(renderer.domElement, 0, 0);
+            ctx.drawImage(labelCanvas, 0, 0);
+
+            // 4. Download
+            const a = document.createElement('a');
+            a.download = 'pinhole_projection.png';
+            a.href = out.toDataURL('image/png');
+            a.click();
+        });
+    }
+
+    // ── Camera preset views & movement ───────────────────────────────────────
+    const TARGET = new THREE.Vector3(0, 0, 5); // orbit target
+    const CAM_DIST = 55;
+
+    function setView(pos) {
+        controls.target.copy(TARGET);
+        camera.position.copy(pos);
+        camera.lookAt(TARGET);
+        controls.update();
+    }
+
+    window.addEventListener('keydown', e => {
+        // ignore when typing in an input
+        if (e.target.tagName === 'INPUT') return;
+
+        const pan = 2;
+        switch (e.key) {
+            // ── Save ──────────────────────────────────────────────────────────
+            case 's': case 'S': downloadPNG(); break;
+
+            // ── Preset views ──────────────────────────────────────────────────
+            case '1': // Perspective (default)
+                setView(new THREE.Vector3(35, 20, 25)); break;
+            case '2': // Top (XZ plane, looking down)
+                setView(new THREE.Vector3(0, CAM_DIST, TARGET.z)); break;
+            case '3': // Front (XY plane, looking along +Z)
+                setView(new THREE.Vector3(0, 0, TARGET.z - CAM_DIST)); break;
+            case '4': // Side (YZ plane, looking along +X)
+                setView(new THREE.Vector3(CAM_DIST, 0, TARGET.z)); break;
+            case '5': // Side opposite
+                setView(new THREE.Vector3(-CAM_DIST, 0, TARGET.z)); break;
+
+            // ── Pan camera (arrow keys) ───────────────────────────────────────
+            case 'ArrowLeft':
+                controls.target.x -= pan;
+                camera.position.x -= pan;
+                controls.update(); break;
+            case 'ArrowRight':
+                controls.target.x += pan;
+                camera.position.x += pan;
+                controls.update(); break;
+            case 'ArrowUp':
+                controls.target.y += pan;
+                camera.position.y += pan;
+                controls.update(); break;
+            case 'ArrowDown':
+                controls.target.y -= pan;
+                camera.position.y -= pan;
+                controls.update(); break;
+        }
+    });
 };
 </script>
 </body>
