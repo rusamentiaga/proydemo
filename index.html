@@ -566,14 +566,13 @@ window.onload = function () {
     scene.add(imagePlaneMesh);
 
 
-    // FOV = 70° (fixed sensor angle — box size = f * tan(35°))
-    const FOV_DEG = 70;
-    const halfFovRad = (FOV_DEG / 2) * Math.PI / 180;
-    // boxHW computed per-frame from f: boxHW = f * tan(halfFovRad)
+    // Fixed sensor half-size — the physical box never changes width/height.
+    // FOV narrows as f increases: FOV = 2 * atan(SENSOR_HW / f)
+    const SENSOR_HW = 8;
 
     // ── Camera Obscura box ────────────────────────────────────────────────────
     // Back wall (pinhole) at z=0, front wall (image plane/screen) at z=-f.
-    // boxHW = f * tan(halfFovRad) — grows with f so the box matches the FOV cone.
+    // Sensor size is constant; only depth (f) changes.
 
     const boxMats = {
         wall:  new THREE.MeshBasicMaterial({ color: 0x6b7a99, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }),
@@ -630,8 +629,8 @@ window.onload = function () {
         const xImg = f * (state.X / state.Z);
         const yImg = f * (state.Y / state.Z);
 
-        // Dynamic half-size: sensor size matches FOV cone at distance f
-        const boxHW = f * Math.tan(halfFovRad);
+        // Sensor size is fixed; only depth changes with f
+        const boxHW = SENSOR_HW;
         const sensorSize = boxHW * 2;
         const d = f;
 
@@ -704,6 +703,7 @@ window.onload = function () {
         pinholeRing.position.set(0, 0, 0.01);
 
         // ── Projected point dot on screen ─────────────────────────────────────
+        screenDot.visible = true;
         screenDot.position.set(-xImg, -yImg, -d + 0.01);
     }
     function makeDynTriangle(color, opacity) {
@@ -773,6 +773,8 @@ window.onload = function () {
     const lblImgPlane   = makeLabel('system');
 
     // Static label text
+    lblP.div.textContent = 'P';
+    lblp.div.textContent = 'p';
     lblY.div.textContent = 'Y';
     lbly.div.textContent = 'y';
     lblX.div.textContent = 'X';
@@ -812,60 +814,52 @@ window.onload = function () {
     function updateDiagram() {
         const { X, Y, Z, f, showX, showY } = state;
 
-        // BUG FIX: pinhole projection — image coords are sign-inverted relative to world
-        // but for visual clarity the triangles show magnitude; projected point placed at (-x,-y,-f)
-        const xImg =  f * (X / Z);   // magnitude (positive for positive X)
+        const xImg =  f * (X / Z);
         const yImg =  f * (Y / Z);
 
-        // Actual projected position on image plane (behind COP, inverted)
         const ptP  = new THREE.Vector3(X, Y, Z);
         const ptp  = new THREE.Vector3(-xImg, -yImg, -f);
         const O    = new THREE.Vector3(0, 0, 0);
 
         pMesh.position.copy(ptP);
+        projMesh.visible = true;
         projMesh.position.copy(ptp);
         imagePlaneMesh.position.z = -f;
-
-
 
         setLine(mainRay, ptP, ptp);
 
         // Optical axis
         setLine(optAxis, new THREE.Vector3(0,0,-f - 12), new THREE.Vector3(0, 0, Z + 10));
 
-        // ── Y-Z triangles (in the YZ plane, x=0) ──────────────────────────────
-        // Large triangle: O, (0,0,Z), (0,Y,Z)
+        // ── Y-Z triangles ─────────────────────────────────────────────────────
         const yzBigBase = new THREE.Vector3(0, 0, Z);
         const yzBigTop  = new THREE.Vector3(0, Y, Z);
-        setTriangle(triYZBig, O, yzBigBase, yzBigTop, showY);
+        setTriangle(triYZBig,   O, yzBigBase, yzBigTop, showY);
 
-        // Small triangle: O, (0,0,-f), (0,-yImg,-f)  [image side, inverted]
         const yzSmBase = new THREE.Vector3(0, 0, -f);
         const yzSmTop  = new THREE.Vector3(0, -yImg, -f);
-        setTriangle(triYZSmall, O, yzSmBase, yzSmTop, showY);
+        setTriangle(triYZSmall, O, yzSmBase,  yzSmTop,  showY);
 
-        // ── X-Z triangles (in the XZ plane, y=0) ──────────────────────────────
-        // BUG FIX: was sharing yzBigBase as a vertex — now uses own correct base
-        const xzBigBase = new THREE.Vector3(0, 0, Z);   // same Z depth, y=0
+        // ── X-Z triangles ─────────────────────────────────────────────────────
+        const xzBigBase = new THREE.Vector3(0, 0, Z);
         const xzBigTop  = new THREE.Vector3(X, 0, Z);
-        setTriangle(triXZBig, O, xzBigBase, xzBigTop, showX);
+        setTriangle(triXZBig,   O, xzBigBase, xzBigTop, showX);
 
         const xzSmBase = new THREE.Vector3(0, 0, -f);
         const xzSmTop  = new THREE.Vector3(-xImg, 0, -f);
-        setTriangle(triXZSmall, O, xzSmBase, xzSmTop, showX);
+        setTriangle(triXZSmall, O, xzSmBase,  xzSmTop,  showX);
 
-        // ── Drop lines from P/p to triangle vertices ───────────────────────────
+        // ── Drop lines ────────────────────────────────────────────────────────
         setLine(dashPtoY, ptP, yzBigTop, showY);
         setLine(dashPtoX, ptP, xzBigTop, showX);
         setLine(dashptoY, ptp, yzSmTop,  showY);
         setLine(dashptoX, ptp, xzSmTop,  showX);
 
         // ── Labels ────────────────────────────────────────────────────────────
-        // Dynamic P and p labels with current values
-        lblP.div.textContent = 'P';
+        lblP.obj.visible = true;
         lblP.obj.position.set(X + 1.2, Y + 1.2, Z);
 
-        lblp.div.textContent = 'p';
+        lblp.obj.visible = true;
         lblp.obj.position.set(-xImg - 0.5, -yImg + 1.5, -f);
 
         // Y-Z labels
@@ -884,7 +878,7 @@ window.onload = function () {
             lblx.obj.position.set(-xImg / 2, -1.5, -f);
         }
 
-        // Z / f labels — only show when the relevant triangle is visible
+        // Z / f labels
         lblZ.obj.visible = showX || showY;
         lblf.obj.visible = showX || showY;
         if (showX || showY) {
@@ -895,7 +889,7 @@ window.onload = function () {
         // Fixed labels
         lblCOP.obj.position.set(0.5, -1.8, 0);
         lblOptAxis.obj.position.set(0, -1.2, Z + 8);
-        const boxHWlbl = f * Math.tan(halfFovRad);
+        const boxHWlbl = SENSOR_HW;
         lblImgPlane.obj.position.set(0, boxHWlbl + 1.2, -f);
 
         // Camera obscura
