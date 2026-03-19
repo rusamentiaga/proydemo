@@ -422,9 +422,14 @@ THREE.CSS2DRenderer = class {
     }
     _renderObject(object, camera) {
         if (object instanceof THREE.CSS2DObject) {
+            const el = object.element;
+            // Respect Three.js visible flag
+            if (!object.visible) {
+                el.style.display = 'none';
+                return;
+            }
             this._vector.setFromMatrixPosition(object.matrixWorld);
             this._vector.project(camera);
-            const el = object.element;
             // Hide objects behind the camera (NDC z > 1)
             el.style.display = (this._vector.z > 1) ? 'none' : '';
             el.style.transform = [
@@ -520,11 +525,15 @@ window.onload = function () {
     controls.target.set(0, 0, 5);
     controls.update();
 
-    // Axes
-    const axes = new THREE.AxesHelper(30);
-    axes.material.opacity = 0.45;
-    axes.material.transparent = true;
-    scene.add(axes);
+    // Plain axis lines (no built-in letter labels like AxesHelper has)
+    function makeAxis(from, to, color) {
+        const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color, opacity: 0.5, transparent: true }));
+        scene.add(line);
+    }
+    makeAxis(new THREE.Vector3(-30,0,0), new THREE.Vector3(30,0,0), 0xff4444);
+    makeAxis(new THREE.Vector3(0,-30,0), new THREE.Vector3(0,30,0), 0x44cc44);
+    makeAxis(new THREE.Vector3(0,0,-30), new THREE.Vector3(0,0,30), 0x4488ff);
 
     // ── Fixed geometry ────────────────────────────────────────────────────────
 
@@ -562,7 +571,7 @@ window.onload = function () {
     scene.add(gridHelper);
 
     // FOV = 60° (fixed sensor angle — box size = f * tan(30°) * 2)
-    const FOV_DEG = 75;
+    const FOV_DEG = 70;
     const halfFovRad = (FOV_DEG / 2) * Math.PI / 180;
     // boxHW computed per-frame from f: boxHW = f * tan(halfFovRad)
 
@@ -888,11 +897,10 @@ window.onload = function () {
             lblx.obj.position.set(-xImg / 2, -1.5, -f);
         }
 
-        // Z / f labels — only show when at least one triangle set is visible
-        const showZf = showX || showY;
-        lblZ.obj.visible = showZf;
-        lblf.obj.visible = showZf;
-        if (showZf) {
+        // Z / f labels — only show when the relevant triangle is visible
+        lblZ.obj.visible = showX || showY;
+        lblf.obj.visible = showX || showY;
+        if (showX || showY) {
             lblZ.obj.position.set(1.5, 0, Z / 2);
             lblf.obj.position.set(1.5, 0, -f / 2);
         }
