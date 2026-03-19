@@ -391,6 +391,50 @@
         scope.domElement.addEventListener('contextmenu',onContextMenu,false);
         scope.domElement.addEventListener('mousedown',onMouseDown,false);
         scope.domElement.addEventListener('wheel',onMouseWheel,{passive:false});
+
+        // ── Touch support ──────────────────────────────────────────────────────
+        var touchStartA=new THREE.Vector2();
+        var touchStartB=new THREE.Vector2();
+        var pinchStartDist=0;
+
+        function onTouchStart(event){
+            if(!scope.enabled)return;
+            event.preventDefault();
+            if(event.touches.length===1){
+                state=STATE.ROTATE;
+                rotateStart.set(event.touches[0].clientX,event.touches[0].clientY);
+            } else if(event.touches.length===2){
+                state=STATE.DOLLY;
+                var dx=event.touches[0].clientX-event.touches[1].clientX;
+                var dy=event.touches[0].clientY-event.touches[1].clientY;
+                pinchStartDist=Math.sqrt(dx*dx+dy*dy);
+            }
+        }
+        function onTouchMove(event){
+            if(!scope.enabled)return;
+            event.preventDefault();
+            if(event.touches.length===1&&state===STATE.ROTATE){
+                rotateEnd.set(event.touches[0].clientX,event.touches[0].clientY);
+                rotateDelta.subVectors(rotateEnd,rotateStart).multiplyScalar(scope.rotateSpeed);
+                var el=scope.domElement;
+                rotateLeft(2*Math.PI*rotateDelta.x/el.clientHeight);
+                rotateUp(2*Math.PI*rotateDelta.y/el.clientHeight);
+                rotateStart.copy(rotateEnd);
+                scope.update();
+            } else if(event.touches.length===2&&state===STATE.DOLLY){
+                var dx=event.touches[0].clientX-event.touches[1].clientX;
+                var dy=event.touches[0].clientY-event.touches[1].clientY;
+                var dist=Math.sqrt(dx*dx+dy*dy);
+                if(dist>pinchStartDist){dollyOut(getZoomScale());}
+                else if(dist<pinchStartDist){dollyIn(getZoomScale());}
+                pinchStartDist=dist;
+                scope.update();
+            }
+        }
+        function onTouchEnd(){state=STATE.NONE;}
+        scope.domElement.addEventListener('touchstart',onTouchStart,{passive:false});
+        scope.domElement.addEventListener('touchmove',onTouchMove,{passive:false});
+        scope.domElement.addEventListener('touchend',onTouchEnd,false);
         this.update();
     };
 })();
