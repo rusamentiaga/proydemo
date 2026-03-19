@@ -105,12 +105,13 @@
 
         /* CSS2D Labels */
         .label {
+            font-family: 'KaTeX_Math', 'Computer Modern', Georgia, serif;
+            font-style: italic;
             color: #333;
             padding: 3px 8px;
             background: rgba(255,255,255,0.88);
             border-radius: 6px;
-            font-size: 13px;
-            font-weight: bold;
+            font-size: 15px;
             pointer-events: none;
             border: 1px solid #ccc;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -118,7 +119,9 @@
             transform: translateY(-22px);
         }
         .label.math {
-            font-size: 15px;
+            font-family: 'KaTeX_Math', 'Computer Modern', Georgia, serif;
+            font-style: italic;
+            font-size: 16px;
             background: transparent;
             border: none;
             box-shadow: none;
@@ -126,6 +129,8 @@
             transform: none;
         }
         .label.system {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-style: normal;
             background: rgba(0,0,0,0.65);
             color: white;
             border: none;
@@ -185,10 +190,10 @@
     <h2>Pinhole Camera Projection</h2>
     <p>A ray from $P(X,Y,Z)$ passes through the pinhole and hits the plane at $p(x,y,-f)$.</p>
 
-    <p class="hl-y">1. Y-Z Similar Triangles (Amber)</p>
+    <p class="hl-y">1. Y-Z Similar Triangles</p>
     <div>$$ \frac{y}{f} = \frac{Y}{Z} \quad \implies \quad y = f \frac{Y}{Z} $$</div>
 
-    <p class="hl-x">2. X-Z Similar Triangles (Cyan)</p>
+    <p class="hl-x">2. X-Z Similar Triangles</p>
     <div>$$ \frac{x}{f} = \frac{X}{Z} \quad \implies \quad x = f \frac{X}{Z} $$</div>
 
 
@@ -772,15 +777,18 @@ window.onload = function () {
     const lblOptAxis    = makeLabel('system');
     const lblImgPlane   = makeLabel('system');
 
-    // Static label text
-    lblP.div.textContent = 'P';
-    lblp.div.textContent = 'p';
-    lblY.div.textContent = 'Y';
-    lbly.div.textContent = 'y';
-    lblX.div.textContent = 'X';
-    lblx.div.textContent = 'x';
-    lblZ.div.textContent = 'Z';
-    lblf.div.textContent = 'f';
+    // Variables rendered as KaTeX math; system labels stay as plain text
+    function setKatex(div, tex) {
+        katex.render(tex, div, { throwOnError: false, displayMode: false });
+    }
+    setKatex(lblP.div, 'P');
+    setKatex(lblp.div, 'p');
+    setKatex(lblY.div, 'Y');
+    setKatex(lbly.div, 'y');
+    setKatex(lblX.div, 'X');
+    setKatex(lblx.div, 'x');
+    setKatex(lblZ.div, 'Z');
+    setKatex(lblf.div, 'f');
     lblCOP.div.textContent = 'Pinhole';
     lblOptAxis.div.textContent = 'Optical Axis';
     lblImgPlane.div.textContent = 'Image Plane';
