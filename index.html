@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Perspective Projection Demo</title>
 
-    <!-- Three.js and Dependencies - Using specific JSDelivr links for r128 to ensure global namespace availability -->
+    <!-- Three.js r128 from cdnjs (guaranteed global THREE namespace) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
 
     <!-- KaTeX for Math Rendering -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
@@ -16,6 +14,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/contrib/auto-render.min.js"></script>
 
     <style>
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
             overflow: hidden;
@@ -28,14 +28,13 @@
             width: 100vw;
             height: 100vh;
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
             z-index: 1;
         }
 
         .panel {
             position: absolute;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.92);
             border: 1px solid #ddd;
             border-radius: 12px;
             padding: 20px;
@@ -54,7 +53,7 @@
         #controls-panel {
             top: 20px;
             right: 20px;
-            width: 250px;
+            width: 260px;
         }
 
         h2 {
@@ -71,14 +70,13 @@
             font-size: 0.9rem;
             line-height: 1.6;
             color: #444;
+            margin: 8px 0;
         }
 
         .hl-y { color: #d97706; font-weight: bold; }
         .hl-x { color: #0891b2; font-weight: bold; }
 
-        .control-group {
-            margin-bottom: 15px;
-        }
+        .control-group { margin-bottom: 14px; }
         .control-group label {
             display: flex;
             justify-content: space-between;
@@ -93,7 +91,7 @@
             cursor: pointer;
             accent-color: #2563eb;
         }
-        
+
         .toggle-row {
             display: flex;
             align-items: center;
@@ -101,15 +99,15 @@
             cursor: pointer;
         }
         .toggle-row input {
-            width: 18px;
-            height: 18px;
+            width: 18px; height: 18px;
             cursor: pointer;
         }
 
+        /* CSS2D Labels */
         .label {
             color: #333;
-            padding: 4px 8px;
-            background: rgba(255, 255, 255, 0.85);
+            padding: 3px 8px;
+            background: rgba(255,255,255,0.88);
             border-radius: 6px;
             font-size: 13px;
             font-weight: bold;
@@ -117,382 +115,825 @@
             border: 1px solid #ccc;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             white-space: nowrap;
-            /* Prevent label background from occluding the 3D sphere point */
-            margin-top: -30px; 
+            transform: translateY(-22px);
         }
-        
         .label.math {
-            font-size: 16px;
+            font-size: 15px;
             background: transparent;
             border: none;
             box-shadow: none;
-            text-shadow: 1px 1px 2px white, -1px -1px 2px white;
-            margin-top: 0;
+            text-shadow: 1px 1px 2px white, -1px -1px 2px white, 0 0 6px white;
+            transform: none;
         }
-
         .label.system {
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0,0,0,0.65);
             color: white;
             border: none;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 0;
+            letter-spacing: 0.6px;
+            transform: none;
         }
-
         .label-y { color: #d97706; }
         .label-x { color: #0891b2; }
-        .label-z { color: #111; }
+        .label-z { color: #444; }
+
+        /* Projected point readout */
+        #readout {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.92);
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 8px 20px;
+            z-index: 10;
+            pointer-events: none;
+            font-size: 0.85rem;
+            font-family: monospace;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            color: #333;
+            white-space: nowrap;
+        }
+        #readout span { font-weight: bold; }
+        #readout .rx { color: #0891b2; }
+        #readout .ry { color: #d97706; }
 
         #instructions {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255,255,255,0.8);
             border: 1px solid #ddd;
             color: #555;
             padding: 8px 16px;
             border-radius: 30px;
             z-index: 10;
             pointer-events: none;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
     </style>
 </head>
 <body>
 
-    <div id="canvas-container"></div>
+<div id="canvas-container"></div>
 
-    <div id="math-panel" class="panel">
-        <h2>Pinhole Camera Projection</h2>
-        <p>The image plane is located <b>behind</b> the Center of Projection (COP) at distance $f$. Rays from $P(X,Y,Z)$ pass through the origin to hit the plane at $p(x,y,-f)$.</p>
-        
-        <p class="hl-y">1. Y-Z Similar Triangles (Amber)</p>
-        <div>
-            $$ \frac{y}{f} = \frac{Y}{Z} \quad \implies \quad y = f \frac{Y}{Z} $$
-        </div>
+<div id="math-panel" class="panel">
+    <h2>Pinhole Camera Projection</h2>
+    <p>A ray from $P(X,Y,Z)$ passes through the pinhole and hits the plane at $p(x,y,-f)$.</p>
 
-        <p class="hl-x">2. X-Z Similar Triangles (Cyan)</p>
-        <div>
-            $$ \frac{x}{f} = \frac{X}{Z} \quad \implies \quad x = f \frac{X}{Z} $$
-        </div>
-        <p><small>The projected coordinate values are inverted due to the ray passing through the COP.</small></p>
+    <p class="hl-y">1. Y-Z Similar Triangles (Amber)</p>
+    <div>$$ \frac{y}{f} = \frac{Y}{Z} \quad \implies \quad y = f \frac{Y}{Z} $$</div>
+
+    <p class="hl-x">2. X-Z Similar Triangles (Cyan)</p>
+    <div>$$ \frac{x}{f} = \frac{X}{Z} \quad \implies \quad x = f \frac{X}{Z} $$</div>
+
+
+</div>
+
+<div id="controls-panel" class="panel">
+    <h2>Parameters</h2>
+
+    <div class="control-group">
+        <label><span>Point X:</span> <span id="valX-disp">8.0</span></label>
+        <input type="range" id="valX" min="-10" max="10" value="8" step="0.5">
+    </div>
+    <div class="control-group">
+        <label><span>Point Y:</span> <span id="valY-disp">6.0</span></label>
+        <input type="range" id="valY" min="-10" max="10" value="6" step="0.5">
+    </div>
+    <div class="control-group">
+        <label><span>Depth Z:</span> <span id="valZ-disp">15.0</span></label>
+        <input type="range" id="valZ" min="8" max="40" value="15" step="0.5">
+    </div>
+    <div class="control-group">
+        <label><span>Focal length f:</span> <span id="valF-disp">10.0</span></label>
+        <input type="range" id="valF" min="2" max="25" value="10" step="0.5">
     </div>
 
-    <div id="controls-panel" class="panel">
-        <h2>Parameters</h2>
-        
+    <div style="margin-top: 18px; border-top: 1px solid #eee; padding-top: 14px;">
         <div class="control-group">
-            <label><span>Point X:</span> <span id="valX-disp">8.0</span></label>
-            <input type="range" id="valX" min="-15" max="15" value="8" step="0.5">
+            <label class="toggle-row hl-y">
+                <input type="checkbox" id="showY" checked>
+                <span>Show Y-Z Triangles</span>
+            </label>
         </div>
-        
         <div class="control-group">
-            <label><span>Point Y:</span> <span id="valY-disp">6.0</span></label>
-            <input type="range" id="valY" min="0" max="15" value="6" step="0.5">
+            <label class="toggle-row hl-x">
+                <input type="checkbox" id="showX" checked>
+                <span>Show X-Z Triangles</span>
+            </label>
         </div>
-        
         <div class="control-group">
-            <label><span>Depth Z:</span> <span id="valZ-disp">15.0</span></label>
-            <input type="range" id="valZ" min="8" max="40" value="15" step="0.5">
-        </div>
-
-        <div class="control-group">
-            <label><span>Focal length f:</span> <span id="valF-disp">10.0</span></label>
-            <input type="range" id="valF" min="2" max="25" value="10" step="0.5">
-        </div>
-
-        <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-            <div class="control-group">
-                <label class="toggle-row hl-y">
-                    <input type="checkbox" id="showY" checked>
-                    <span>Show Y-Z Triangles</span>
-                </label>
-            </div>
-            <div class="control-group">
-                <label class="toggle-row hl-x">
-                    <input type="checkbox" id="showX" checked>
-                    <span>Show X-Z Triangles</span>
-                </label>
-            </div>
+            <label class="toggle-row" style="color:#4a5270; font-weight:bold;">
+                <input type="checkbox" id="showBox" checked>
+                <span>Show Camera Obscura</span>
+            </label>
         </div>
     </div>
+</div>
 
-    <div id="instructions">
-        🖱️ Rotate: Left Click | 🖱️ Pan: Right Click | 📜 Zoom: Scroll
-    </div>
 
-    <script>
-        window.onload = function() {
-            // KaTeX rendering
-            renderMathInElement(document.body, {
-                delimiters: [
-                    {left: "$$", right: "$$", display: true},
-                    {left: "$", right: "$", display: false}
-                ]
-            });
 
-            // Default internal state
-            let state = { X: 8, Y: 6, Z: 15, f: 10, showX: true, showY: true };
+<div id="instructions">
+    🖱️ Rotate: Left Drag &nbsp;|&nbsp; 🖱️ Pan: Right Drag &nbsp;|&nbsp; 📜 Zoom: Scroll
+</div>
 
-            const els = {
-                X: document.getElementById('valX'),
-                Y: document.getElementById('valY'),
-                Z: document.getElementById('valZ'),
-                f: document.getElementById('valF'),
-                showX: document.getElementById('showX'),
-                showY: document.getElementById('showY'),
-                dispX: document.getElementById('valX-disp'),
-                dispY: document.getElementById('valY-disp'),
-                dispZ: document.getElementById('valZ-disp'),
-                dispF: document.getElementById('valF-disp')
-            };
-
-            // Setup input listeners
-            ['X', 'Y', 'Z', 'f'].forEach(key => {
-                const input = els[key];
-                const display = els['disp' + key.toUpperCase()];
-                input.addEventListener('input', (e) => {
-                    state[key] = parseFloat(e.target.value);
-                    display.textContent = state[key].toFixed(1);
-                    updateDiagram();
-                });
-            });
-
-            ['showX', 'showY'].forEach(key => {
-                els[key].addEventListener('change', (e) => {
-                    state[key] = e.target.checked;
-                    updateDiagram();
-                });
-            });
-
-            // SYNC INITIAL STATE WITH DOM (Handles browser caching/autocomplete on refresh)
-            function syncInitialState() {
-                ['X', 'Y', 'Z', 'f'].forEach(key => {
-                    state[key] = parseFloat(els[key].value);
-                    const display = els['disp' + key.toUpperCase()];
-                    if(display) display.textContent = state[key].toFixed(1);
-                });
-                state.showX = els.showX.checked;
-                state.showY = els.showY.checked;
+<!-- Inline OrbitControls + CSS2DRenderer for r128 (avoids CDN cross-script failures) -->
+<script>
+// ── Minimal OrbitControls for THREE r128 ────────────────────────────────────
+(function(){
+    var MOUSE={LEFT:0,MIDDLE:1,RIGHT:2};
+    var STATE={NONE:-1,ROTATE:0,DOLLY:1,PAN:2};
+    THREE.OrbitControls=function(object,domElement){
+        this.object=object;
+        this.domElement=domElement||document;
+        this.enabled=true;
+        this.target=new THREE.Vector3();
+        this.minDistance=0;this.maxDistance=Infinity;
+        this.minPolarAngle=0;this.maxPolarAngle=Math.PI;
+        this.enableDamping=false;this.dampingFactor=0.05;
+        this.enableZoom=true;this.zoomSpeed=1.0;
+        this.enableRotate=true;this.rotateSpeed=1.0;
+        this.enablePan=true;this.panSpeed=1.0;
+        this.screenSpacePanning=true;
+        var scope=this;
+        var state=STATE.NONE;
+        var spherical=new THREE.Spherical();
+        var sphericalDelta=new THREE.Spherical();
+        var scale=1;
+        var panOffset=new THREE.Vector3();
+        var rotateStart=new THREE.Vector2();
+        var rotateEnd=new THREE.Vector2();
+        var rotateDelta=new THREE.Vector2();
+        var panStart=new THREE.Vector2();
+        var panEnd=new THREE.Vector2();
+        var panDelta=new THREE.Vector2();
+        var dollyStart=new THREE.Vector2();
+        var dollyEnd=new THREE.Vector2();
+        var dollyDelta=new THREE.Vector2();
+        function getAutoRotationAngle(){return 2*Math.PI/60/60*scope.autoRotateSpeed;}
+        function getZoomScale(){return Math.pow(0.95,scope.zoomSpeed);}
+        function rotateLeft(angle){sphericalDelta.theta-=angle;}
+        function rotateUp(angle){sphericalDelta.phi-=angle;}
+        var panLeftV=new THREE.Vector3();
+        function panLeft(distance,objectMatrix){panLeftV.setFromMatrixColumn(objectMatrix,0);panLeftV.multiplyScalar(-distance);panOffset.add(panLeftV);}
+        var panUpV=new THREE.Vector3();
+        function panUp(distance,objectMatrix){
+            if(scope.screenSpacePanning){panUpV.setFromMatrixColumn(objectMatrix,1);}
+            else{panUpV.setFromMatrixColumn(objectMatrix,0);panUpV.crossVectors(scope.object.up,panUpV);}
+            panUpV.multiplyScalar(distance);panOffset.add(panUpV);
+        }
+        var panInternalV=new THREE.Vector2();
+        function pan(deltaX,deltaY){
+            var el=scope.domElement;
+            if(scope.object.isPerspectiveCamera){
+                var position=scope.object.position;
+                var offset=position.clone().sub(scope.target);
+                var targetDistance=offset.length()*Math.tan((scope.object.fov/2)*Math.PI/180)*2;
+                panLeft(deltaX*targetDistance/el.clientHeight,scope.object.matrix);
+                panUp(deltaY*targetDistance/el.clientHeight,scope.object.matrix);
             }
-
-            const container = document.getElementById('canvas-container');
-            const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf5f5f7);
-
-            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(35, 20, 25);
-
-            const renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            container.appendChild(renderer.domElement);
-
-            const labelRenderer = new THREE.CSS2DRenderer();
-            labelRenderer.setSize(window.innerWidth, window.innerHeight);
-            labelRenderer.domElement.style.position = 'absolute';
-            labelRenderer.domElement.style.top = '0px';
-            labelRenderer.domElement.style.pointerEvents = 'none';
-            container.appendChild(labelRenderer.domElement);
-
-            const controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.target.set(0, 0, 5);
-            controls.update();
-
-            const axes = new THREE.AxesHelper(30);
-            axes.material.opacity = 0.5;
-            axes.material.transparent = true;
-            scene.add(axes);
-
-            const copMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), new THREE.MeshBasicMaterial({ color: 0x333333 }));
-            scene.add(copMesh);
-
-            const pMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
-            scene.add(pMesh);
-
-            const projMesh = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
-            scene.add(projMesh);
-
-            const imagePlane = new THREE.Mesh(
-                new THREE.PlaneGeometry(60, 60), 
-                new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.05, side: THREE.DoubleSide, depthWrite: false })
-            );
-            scene.add(imagePlane);
-
-            const gridHelper = new THREE.GridHelper(60, 60, 0xcccccc, 0xeeeeee);
-            gridHelper.rotation.x = Math.PI / 2;
-            scene.add(gridHelper);
-
-            function createDynamicTriangle(color, opacity) {
-                const geometry = new THREE.BufferGeometry();
-                geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
-                const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }));
-                const lineGeo = new THREE.BufferGeometry();
-                lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));
-                const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color, opacity: 0.6, transparent: true }));
-                scene.add(mesh);
-                scene.add(line);
-                return { mesh, line };
-            }
-
-            function createDynamicLine(color, isDashed = false) {
-                const geometry = new THREE.BufferGeometry();
-                geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-                const material = isDashed ? new THREE.LineDashedMaterial({ color, dashSize: 0.5, gapSize: 0.2, opacity: 0.4, transparent: true }) : new THREE.LineBasicMaterial({ color, opacity: 0.8, transparent: true });
-                const line = new THREE.Line(geometry, material);
-                scene.add(line);
-                return line;
-            }
-
-            const mainRay = createDynamicLine(0x666666);
-            const opticalAxis = createDynamicLine(0x999999, true);
-            const triYZBig = createDynamicTriangle(0xd97706, 0.15);
-            const triYZSmall = createDynamicTriangle(0xd97706, 0.3);
-            const triXZBig = createDynamicTriangle(0x0891b2, 0.15);
-            const triXZSmall = createDynamicTriangle(0x0891b2, 0.3);
-
-            const dashPtoY = createDynamicLine(0xd97706, true);
-            const dashPtoX = createDynamicLine(0x0891b2, true);
-            const dashptoY = createDynamicLine(0xd97706, true);
-            const dashptoX = createDynamicLine(0x0891b2, true);
-
-            function createLabel(content, cssClass, isMath = true) {
-                const div = document.createElement('div');
-                div.className = `label ${cssClass}`;
-                if (isMath) {
-                    try {
-                        katex.render(content, div, { throwOnError: false });
-                    } catch (e) {
-                        div.textContent = content;
-                    }
-                } else {
-                    div.textContent = content;
-                }
-                const obj = new THREE.CSS2DObject(div);
-                scene.add(obj);
-                return obj;
-            }
-
-            const lblP = createLabel('P(X,Y,Z)', '');
-            const lblpProj = createLabel('p(x,y,-f)', '');
-            const lblY = createLabel('Y', 'math label-y');
-            const lbly = createLabel('y', 'math label-y');
-            const lblX = createLabel('X', 'math label-x');
-            const lblx = createLabel('x', 'math label-x');
-            const lblZ = createLabel('Z', 'math label-z');
-            const lblf = createLabel('f', 'math label-z');
-            
-            const lblCOP = createLabel('Pinhole', 'system', false);
-            const lblOpticalAxis = createLabel('Optical Axis', 'system', false);
-            const lblImagePlane = createLabel('Image Plane', 'system', false);
-
-            function updateTriangleGeo(triObj, p1, p2, p3, visible) {
-                triObj.mesh.visible = visible;
-                triObj.line.visible = visible;
-                if (!visible) return;
-
-                const pos = triObj.mesh.geometry.attributes.position.array;
-                [p1, p2, p3].forEach((p, i) => { pos[i*3]=p.x; pos[i*3+1]=p.y; pos[i*3+2]=p.z; });
-                triObj.mesh.geometry.attributes.position.needsUpdate = true;
-                const linePos = triObj.line.geometry.attributes.position.array;
-                [p1, p2, p3, p1].forEach((p, i) => { linePos[i*3]=p.x; linePos[i*3+1]=p.y; linePos[i*3+2]=p.z; });
-                triObj.line.geometry.attributes.position.needsUpdate = true;
-            }
-
-            function updateLineGeo(line, p1, p2, visible = true) {
-                line.visible = visible;
-                if (!visible) return;
-
-                const pos = line.geometry.attributes.position.array;
-                pos[0]=p1.x; pos[1]=p1.y; pos[2]=p1.z;
-                pos[3]=p2.x; pos[4]=p2.y; pos[5]=p2.z;
-                line.geometry.attributes.position.needsUpdate = true;
-                if (line.material.isLineDashedMaterial) line.computeLineDistances();
-            }
-
-            function updateDiagram() {
-                const { X, Y, Z, f, showX, showY } = state;
-                const x = -f * (X / Z);
-                const y = -f * (Y / Z);
-
-                const origin = new THREE.Vector3(0, 0, 0);
-                const ptP = new THREE.Vector3(X, Y, Z);
-                const ptp = new THREE.Vector3(x, y, -f);
-
-                pMesh.position.copy(ptP);
-                projMesh.position.copy(ptp);
-                imagePlane.position.z = -f;
-                gridHelper.position.z = -f;
-
-                updateLineGeo(mainRay, ptp, ptP);
-                updateLineGeo(opticalAxis, new THREE.Vector3(0, 0, -27), new THREE.Vector3(0, 0, 42));
-
-                const ptYZBigTop = new THREE.Vector3(0, Y, Z);
-                const ptYZBigBase = new THREE.Vector3(0, 0, Z);
-                updateTriangleGeo(triYZBig, origin, ptYZBigBase, ptYZBigTop, showY);
-
-                const ptYZSmallTop = new THREE.Vector3(0, y, -f);
-                const ptYZSmallBase = new THREE.Vector3(0, 0, -f);
-                updateTriangleGeo(triYZSmall, origin, ptYZSmallBase, ptYZSmallTop, showY);
-
-                const ptXZBigTop = new THREE.Vector3(X, 0, Z);
-                updateTriangleGeo(triXZBig, origin, ptYZBigBase, ptXZBigTop, showX);
-
-                const ptXZSmallTop = new THREE.Vector3(x, 0, -f);
-                updateTriangleGeo(triXZSmall, origin, ptYZSmallBase, ptXZSmallTop, showX);
-
-                updateLineGeo(dashPtoY, ptP, ptYZBigTop, showY);
-                updateLineGeo(dashPtoX, ptP, ptXZBigTop, showX);
-                updateLineGeo(dashptoY, ptp, ptYZSmallTop, showY);
-                updateLineGeo(dashptoX, ptp, ptXZSmallTop, showX);
-
-                // Offset labels slightly more to prevent occlusion of the points
-                lblP.position.set(X + 1.2, Y + 1.2, Z);
-                lblpProj.position.set(x + 1.2, y + 1.2, -f);
-                
-                lblY.visible = showY;
-                lbly.visible = showY;
-                if (showY) {
-                    lblY.position.set(0, Y / 2, Z);
-                    lbly.position.set(0, y / 2, -f);
-                }
-
-                lblX.visible = showX;
-                lblx.visible = showX;
-                if (showX) {
-                    lblX.position.set(X / 2, 0, Z);
-                    lblx.position.set(x / 2, 0, -f);
-                }
-                
-                lblZ.position.set(0, 0, Z / 2);
-                lblf.position.set(0, 0, -f / 2);
-
-                lblCOP.position.set(0, -1.5, 0);
-                lblOpticalAxis.position.set(0, -1, Z + 10);
-                lblImagePlane.position.set(0, 15, -f);
-            }
-
-            // Sync from DOM then render first frame
-            syncInitialState();
-            updateDiagram();
-
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                labelRenderer.setSize(window.innerWidth, window.innerHeight);
-            });
-
-            function animate() {
-                requestAnimationFrame(animate);
-                controls.update();
-                renderer.render(scene, camera);
-                labelRenderer.render(scene, camera);
-            }
-            animate();
+        }
+        function dollyIn(dollyScale){scale/=dollyScale;}
+        function dollyOut(dollyScale){scale*=dollyScale;}
+        var offset=new THREE.Vector3();
+        var quat=new THREE.Quaternion().setFromUnitVectors(object.up,new THREE.Vector3(0,1,0));
+        var quatInverse=quat.clone().invert();
+        var lastPosition=new THREE.Vector3();
+        var lastQuaternion=new THREE.Quaternion();
+        this.update=function(){
+            var position=scope.object.position;
+            offset.copy(position).sub(scope.target);
+            offset.applyQuaternion(quat);
+            spherical.setFromVector3(offset);
+            spherical.theta+=sphericalDelta.theta;
+            spherical.phi+=sphericalDelta.phi;
+            spherical.phi=Math.max(scope.minPolarAngle,Math.min(scope.maxPolarAngle,spherical.phi));
+            spherical.makeSafe();
+            spherical.radius*=scale;
+            spherical.radius=Math.max(scope.minDistance,Math.min(scope.maxDistance,spherical.radius));
+            scope.target.add(panOffset);
+            offset.setFromSpherical(spherical);
+            offset.applyQuaternion(quatInverse);
+            position.copy(scope.target).add(offset);
+            scope.object.lookAt(scope.target);
+            sphericalDelta.set(0,0,0);
+            scale=1;panOffset.set(0,0,0);
         };
-    </script>
+        this.dispose=function(){
+            scope.domElement.removeEventListener('contextmenu',onContextMenu);
+            scope.domElement.removeEventListener('mousedown',onMouseDown);
+            scope.domElement.removeEventListener('wheel',onMouseWheel);
+            document.removeEventListener('mousemove',onMouseMove);
+            document.removeEventListener('mouseup',onMouseUp);
+        };
+        function onMouseDown(event){
+            if(!scope.enabled)return;
+            event.preventDefault();
+            if(event.button===MOUSE.LEFT){state=STATE.ROTATE;rotateStart.set(event.clientX,event.clientY);}
+            else if(event.button===MOUSE.MIDDLE){state=STATE.DOLLY;dollyStart.set(event.clientX,event.clientY);}
+            else if(event.button===MOUSE.RIGHT){state=STATE.PAN;panStart.set(event.clientX,event.clientY);}
+            document.addEventListener('mousemove',onMouseMove,false);
+            document.addEventListener('mouseup',onMouseUp,false);
+        }
+        function onMouseMove(event){
+            if(!scope.enabled)return;
+            event.preventDefault();
+            if(state===STATE.ROTATE){
+                rotateEnd.set(event.clientX,event.clientY);
+                rotateDelta.subVectors(rotateEnd,rotateStart).multiplyScalar(scope.rotateSpeed);
+                var el=scope.domElement;
+                rotateLeft(2*Math.PI*rotateDelta.x/el.clientHeight);
+                rotateUp(2*Math.PI*rotateDelta.y/el.clientHeight);
+                rotateStart.copy(rotateEnd);
+                scope.update();
+            } else if(state===STATE.DOLLY){
+                dollyEnd.set(event.clientX,event.clientY);
+                dollyDelta.subVectors(dollyEnd,dollyStart);
+                if(dollyDelta.y>0)dollyIn(getZoomScale());
+                else if(dollyDelta.y<0)dollyOut(getZoomScale());
+                dollyStart.copy(dollyEnd);scope.update();
+            } else if(state===STATE.PAN){
+                panEnd.set(event.clientX,event.clientY);
+                panDelta.subVectors(panEnd,panStart).multiplyScalar(scope.panSpeed);
+                pan(panDelta.x,panDelta.y);
+                panStart.copy(panEnd);scope.update();
+            }
+        }
+        function onMouseUp(){state=STATE.NONE;document.removeEventListener('mousemove',onMouseMove);document.removeEventListener('mouseup',onMouseUp);}
+        function onMouseWheel(event){
+            if(!scope.enabled||!scope.enableZoom)return;
+            event.preventDefault();event.stopPropagation();
+            if(event.deltaY<0)dollyOut(getZoomScale());
+            else if(event.deltaY>0)dollyIn(getZoomScale());
+            scope.update();
+        }
+        function onContextMenu(event){if(!scope.enabled)return;event.preventDefault();}
+        scope.domElement.addEventListener('contextmenu',onContextMenu,false);
+        scope.domElement.addEventListener('mousedown',onMouseDown,false);
+        scope.domElement.addEventListener('wheel',onMouseWheel,{passive:false});
+        this.update();
+    };
+})();
+
+// ── CSS2DObject + CSS2DRenderer for THREE r128 ───────────────────────────────
+// Must use ES6 `class extends` — THREE.Object3D is itself an ES6 class in r128,
+// so the old `THREE.Object3D.call(this)` pattern throws "class constructors must
+// be invoked with 'new'".
+THREE.CSS2DObject = class extends THREE.Object3D {
+    constructor(element) {
+        super();
+        this.element = element;
+        this.element.style.position = 'absolute';
+        this.element.style.userSelect = 'none';
+        this.addEventListener('removed', () => {
+            this.traverse(obj => {
+                if (obj.element instanceof Element && obj.element.parentNode) {
+                    obj.element.parentNode.removeChild(obj.element);
+                }
+            });
+        });
+    }
+    copy(source, recursive) {
+        super.copy(source, recursive);
+        this.element = source.element.cloneNode(true);
+        return this;
+    }
+};
+
+THREE.CSS2DRenderer = class {
+    constructor() {
+        this._width = 0; this._height = 0;
+        this._widthHalf = 0; this._heightHalf = 0;
+        this._vector = new THREE.Vector3();
+        this.domElement = document.createElement('div');
+        this.domElement.style.overflow = 'hidden';
+    }
+    getSize() { return { width: this._width, height: this._height }; }
+    setSize(width, height) {
+        this._width = width; this._height = height;
+        this._widthHalf = width / 2; this._heightHalf = height / 2;
+        this.domElement.style.width  = width  + 'px';
+        this.domElement.style.height = height + 'px';
+    }
+    _renderObject(object, camera) {
+        if (object instanceof THREE.CSS2DObject) {
+            this._vector.setFromMatrixPosition(object.matrixWorld);
+            this._vector.project(camera);
+            const el = object.element;
+            // Hide objects behind the camera (NDC z > 1)
+            el.style.display = (this._vector.z > 1) ? 'none' : '';
+            el.style.transform = [
+                'translate(-50%,-50%)',
+                `translate(${this._vector.x * this._widthHalf + this._widthHalf}px,`,
+                `${-(this._vector.y * this._heightHalf) + this._heightHalf}px)`
+            ].join('');
+            if (el.parentNode !== this.domElement) this.domElement.appendChild(el);
+        }
+        for (const child of object.children) this._renderObject(child, camera);
+    }
+    render(scene, camera) {
+        scene.updateMatrixWorld();
+        if (camera.parent === null) camera.updateMatrixWorld();
+        this._renderObject(scene, camera);
+    }
+};
+</script>
+
+<script>
+window.onload = function () {
+
+    // ── KaTeX ─────────────────────────────────────────────────────────────────
+    renderMathInElement(document.body, {
+        delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "$",  right: "$",  display: false }
+        ]
+    });
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let state = { X: 8, Y: 6, Z: 15, f: 10, showX: true, showY: true, showBox: true };
+
+    const els = {
+        X: document.getElementById('valX'),
+        Y: document.getElementById('valY'),
+        Z: document.getElementById('valZ'),
+        f: document.getElementById('valF'),
+        showX: document.getElementById('showX'),
+        showY: document.getElementById('showY'),
+        dispX: document.getElementById('valX-disp'),
+        dispY: document.getElementById('valY-disp'),
+        dispZ: document.getElementById('valZ-disp'),
+        dispF: document.getElementById('valF-disp'),
+        rxVal: null,
+        ryVal: null,
+        showBox: document.getElementById('showBox'),
+    };
+
+    function syncInitialState() {
+        ['X','Y','Z','f'].forEach(k => {
+            state[k] = parseFloat(els[k].value);
+            const d = els['disp'+k.toUpperCase()];
+            if (d) d.textContent = state[k].toFixed(1);
+        });
+        state.showX = els.showX.checked;
+        state.showY = els.showY.checked;
+        state.showBox = els.showBox.checked;
+    }
+
+    ['X','Y','Z','f'].forEach(k => {
+        els[k].addEventListener('input', e => {
+            state[k] = parseFloat(e.target.value);
+            els['disp'+k.toUpperCase()].textContent = state[k].toFixed(1);
+            updateDiagram();
+        });
+    });
+    ['showX','showY','showBox'].forEach(k => {
+        els[k].addEventListener('change', e => { state[k] = e.target.checked; updateDiagram(); });
+    });
+
+    // ── Three.js scene ────────────────────────────────────────────────────────
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf5f5f7);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(35, 20, 25);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    const labelRenderer = new THREE.CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0px';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 5);
+    controls.update();
+
+    // Axes
+    const axes = new THREE.AxesHelper(30);
+    axes.material.opacity = 0.45;
+    axes.material.transparent = true;
+    scene.add(axes);
+
+    // ── Fixed geometry ────────────────────────────────────────────────────────
+    // COP sphere
+    const copMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x333333 })
+    );
+    scene.add(copMesh);
+
+    // 3D point P
+    const pMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.4, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    scene.add(pMesh);
+
+    // Projected point p
+    const projMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x22c55e })
+    );
+    scene.add(projMesh);
+
+    // Image plane — geometry rebuilt dynamically to match box size
+    const imagePlaneMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({
+            color: 0x3b82f6,
+            transparent: true,
+            opacity: 0.05,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        })
+    );
+    scene.add(imagePlaneMesh);
+
+    // Image-plane grid — rebuilt dynamically
+    let gridHelper = new THREE.GridHelper(1, 10, 0xaaaacc, 0xccccee);
+    gridHelper.rotation.x = Math.PI / 2;
+    scene.add(gridHelper);
+
+    // FOV = 60° (fixed sensor angle — box size = f * tan(30°) * 2)
+    const FOV_DEG = 75;
+    const halfFovRad = (FOV_DEG / 2) * Math.PI / 180;
+    // boxHW computed per-frame from f: boxHW = f * tan(halfFovRad)
+
+    // ── Camera Obscura box ────────────────────────────────────────────────────
+    // Back wall (pinhole) at z=0, front wall (image plane/screen) at z=-f.
+    // boxHW = f * tan(halfFovRad) — grows with f so the box matches the FOV cone.
+
+    const boxMats = {
+        wall:  new THREE.MeshBasicMaterial({ color: 0x6b7a99, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }),
+        screen:new THREE.MeshBasicMaterial({ color: 0xddeeff, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
+        edge:  new THREE.LineBasicMaterial({ color: 0x8896b8, transparent: true, opacity: 0.8 }),
+    };
+
+    // Helper: create one rectangular face as a Mesh + outline
+    function makeBoxFace(w, h) {
+        const geo = new THREE.PlaneGeometry(w, h);
+        const mesh = new THREE.Mesh(geo, boxMats.wall);
+        // Outline (EdgesGeometry on a plane = 4 edges)
+        const edges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(geo),
+            boxMats.edge
+        );
+        return { mesh, edges };
+    }
+
+    // We'll build a group so we can toggle/reposition as a unit
+    const boxGroup = new THREE.Group();
+    scene.add(boxGroup);
+
+    // Faces initialised with placeholder size 1 — updateBox() rebuilds geometry immediately
+    const bk = makeBoxFace(1, 1); // back  — pinhole wall at z=0
+    const ft = makeBoxFace(1, 1); // front — image plane / screen
+    const tp = makeBoxFace(1, 1); // top
+    const bt = makeBoxFace(1, 1); // bottom
+    const lf = makeBoxFace(1, 1); // left
+    const rt = makeBoxFace(1, 1); // right
+
+    // The front face gets the translucent screen material
+    ft.mesh.material = boxMats.screen;
+
+    // Pinhole dot on back wall
+    const pinholeDot = new THREE.Mesh(
+        new THREE.CircleGeometry(0.25, 24),
+        new THREE.MeshBasicMaterial({ color: 0x111111 })
+    );
+
+    // Small glowing dot on screen showing where the projection lands
+    const screenDot = new THREE.Mesh(
+        new THREE.CircleGeometry(0.3, 24),
+        new THREE.MeshBasicMaterial({ color: 0x22c55e })
+    );
+
+    // Assemble into group
+    [bk, ft, tp, bt, lf, rt].forEach(f => { boxGroup.add(f.mesh); boxGroup.add(f.edges); });
+    boxGroup.add(pinholeDot);
+    boxGroup.add(screenDot);
+
+    function updateBox() {
+        const { f, showBox } = state;
+        const xImg = f * (state.X / state.Z);
+        const yImg = f * (state.Y / state.Z);
+
+        // Dynamic half-size: sensor size matches FOV cone at distance f
+        const boxHW = f * Math.tan(halfFovRad);
+        const sensorSize = boxHW * 2;
+        const d = f;
+
+        // ── Rebuild image plane geometry to match sensor size ─────────────────
+        imagePlaneMesh.geometry.dispose();
+        imagePlaneMesh.geometry = new THREE.PlaneGeometry(sensorSize, sensorSize);
+        imagePlaneMesh.position.z = -f;
+
+        // Rebuild grid to match sensor size (keep ~1 unit cell spacing)
+        scene.remove(gridHelper);
+        gridHelper.geometry.dispose();
+        const gridDivs = Math.max(4, Math.round(sensorSize));
+        gridHelper = new THREE.GridHelper(sensorSize, gridDivs, 0xaaaacc, 0xccccee);
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.position.z = -f;
+        scene.add(gridHelper);
+
+        boxGroup.visible = showBox;
+        if (!showBox) return;
+
+        // ── Back wall at z=0 (pinhole/COP face) ──────────────────────────────
+        bk.mesh.geometry.dispose();
+        bk.mesh.geometry = new THREE.PlaneGeometry(sensorSize, sensorSize);
+        bk.edges.geometry.dispose();
+        bk.edges.geometry = new THREE.EdgesGeometry(bk.mesh.geometry);
+        bk.mesh.position.set(0, 0, 0);
+        bk.edges.position.set(0, 0, 0);
+
+        // ── Front wall at z=-f (screen) ───────────────────────────────────────
+        ft.mesh.geometry.dispose();
+        ft.mesh.geometry = new THREE.PlaneGeometry(sensorSize, sensorSize);
+        ft.edges.geometry.dispose();
+        ft.edges.geometry = new THREE.EdgesGeometry(ft.mesh.geometry);
+        ft.mesh.position.set(0, 0, -d);
+        ft.edges.position.set(0, 0, -d);
+
+        // ── Top wall ──────────────────────────────────────────────────────────
+        tp.mesh.geometry.dispose();
+        tp.mesh.geometry = new THREE.PlaneGeometry(sensorSize, d);
+        tp.edges.geometry.dispose();
+        tp.edges.geometry = new THREE.EdgesGeometry(tp.mesh.geometry);
+        tp.mesh.rotation.x = Math.PI / 2;
+        tp.edges.rotation.x = Math.PI / 2;
+        tp.mesh.position.set(0,  boxHW, -d/2);
+        tp.edges.position.set(0,  boxHW, -d/2);
+
+        // ── Bottom wall ───────────────────────────────────────────────────────
+        bt.mesh.geometry.dispose();
+        bt.mesh.geometry = new THREE.PlaneGeometry(sensorSize, d);
+        bt.edges.geometry.dispose();
+        bt.edges.geometry = new THREE.EdgesGeometry(bt.mesh.geometry);
+        bt.mesh.rotation.x = Math.PI / 2;
+        bt.edges.rotation.x = Math.PI / 2;
+        bt.mesh.position.set(0, -boxHW, -d/2);
+        bt.edges.position.set(0, -boxHW, -d/2);
+
+        // ── Left wall ─────────────────────────────────────────────────────────
+        lf.mesh.geometry.dispose();
+        lf.mesh.geometry = new THREE.PlaneGeometry(d, sensorSize);
+        lf.edges.geometry.dispose();
+        lf.edges.geometry = new THREE.EdgesGeometry(lf.mesh.geometry);
+        lf.mesh.rotation.y = Math.PI / 2;
+        lf.edges.rotation.y = Math.PI / 2;
+        lf.mesh.position.set(-boxHW, 0, -d/2);
+        lf.edges.position.set(-boxHW, 0, -d/2);
+
+        // ── Right wall ────────────────────────────────────────────────────────
+        rt.mesh.geometry.dispose();
+        rt.mesh.geometry = new THREE.PlaneGeometry(d, sensorSize);
+        rt.edges.geometry.dispose();
+        rt.edges.geometry = new THREE.EdgesGeometry(rt.mesh.geometry);
+        rt.mesh.rotation.y = Math.PI / 2;
+        rt.edges.rotation.y = Math.PI / 2;
+        rt.mesh.position.set( boxHW, 0, -d/2);
+        rt.edges.position.set( boxHW, 0, -d/2);
+
+        // ── Pinhole dot (back wall, at COP) ───────────────────────────────────
+        pinholeDot.position.set(0, 0, 0.01);
+
+        // ── Projected point dot on screen ─────────────────────────────────────
+        screenDot.position.set(-xImg, -yImg, -d + 0.01);
+    }
+    function makeDynTriangle(color, opacity) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+            color, transparent: true, opacity,
+            side: THREE.DoubleSide, depthWrite: false
+        }));
+
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));
+        const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({
+            color, opacity: 0.7, transparent: true
+        }));
+
+        scene.add(mesh);
+        scene.add(line);
+        return { mesh, line };
+    }
+
+    function makeDynLine(color, dashed = false) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+        const mat = dashed
+            ? new THREE.LineDashedMaterial({ color, dashSize: 0.5, gapSize: 0.25,
+                                              opacity: 0.5, transparent: true, depthTest: false })
+            : new THREE.LineBasicMaterial({ color, opacity: 0.85, transparent: true });
+        const line = new THREE.Line(geo, mat);
+        scene.add(line);
+        return line;
+    }
+
+    const mainRay    = makeDynLine(0x666666);
+    const optAxis    = makeDynLine(0x999999, true);
+
+    // FIX: separate triangles for Y-Z and X-Z, each with correct independent vertices
+    const triYZBig   = makeDynTriangle(0xd97706, 0.15);  // amber large
+    const triYZSmall = makeDynTriangle(0xd97706, 0.30);  // amber small
+    const triXZBig   = makeDynTriangle(0x0891b2, 0.15);  // cyan large
+    const triXZSmall = makeDynTriangle(0x0891b2, 0.30);  // cyan small
+
+    const dashPtoY   = makeDynLine(0xd97706, true);
+    const dashPtoX   = makeDynLine(0x0891b2, true);
+    const dashptoY   = makeDynLine(0xd97706, true);
+    const dashptoX   = makeDynLine(0x0891b2, true);
+
+    // ── CSS2D Labels ──────────────────────────────────────────────────────────
+    function makeLabel(cssClass, isMath = false) {
+        const div = document.createElement('div');
+        div.className = 'label ' + cssClass;
+        const obj = new THREE.CSS2DObject(div);
+        scene.add(obj);
+        return { obj, div };
+    }
+
+    const lblP          = makeLabel('');
+    const lblp          = makeLabel('');
+    const lblY          = makeLabel('math label-y', true);
+    const lbly          = makeLabel('math label-y', true);
+    const lblX          = makeLabel('math label-x', true);
+    const lblx          = makeLabel('math label-x', true);
+    const lblZ          = makeLabel('math label-z', true);
+    const lblf          = makeLabel('math label-z', true);
+    const lblCOP        = makeLabel('system');
+    const lblOptAxis    = makeLabel('system');
+    const lblImgPlane   = makeLabel('system');
+
+    // Static label text
+    lblY.div.textContent = 'Y';
+    lbly.div.textContent = 'y';
+    lblX.div.textContent = 'X';
+    lblx.div.textContent = 'x';
+    lblZ.div.textContent = 'Z';
+    lblf.div.textContent = 'f';
+    lblCOP.div.textContent = 'Pinhole (COP)';
+    lblOptAxis.div.textContent = 'Optical Axis';
+    lblImgPlane.div.textContent = 'Image Plane';
+
+    // ── Geometry update helpers ───────────────────────────────────────────────
+    function setTriangle(tri, p1, p2, p3, visible) {
+        tri.mesh.visible = visible;
+        tri.line.visible = visible;
+        if (!visible) return;
+
+        const vPos = tri.mesh.geometry.attributes.position.array;
+        [p1, p2, p3].forEach((p, i) => { vPos[i*3]=p.x; vPos[i*3+1]=p.y; vPos[i*3+2]=p.z; });
+        tri.mesh.geometry.attributes.position.needsUpdate = true;
+
+        const lPos = tri.line.geometry.attributes.position.array;
+        [p1, p2, p3, p1].forEach((p, i) => { lPos[i*3]=p.x; lPos[i*3+1]=p.y; lPos[i*3+2]=p.z; });
+        tri.line.geometry.attributes.position.needsUpdate = true;
+    }
+
+    function setLine(line, p1, p2, visible = true) {
+        line.visible = visible;
+        if (!visible) return;
+        const pos = line.geometry.attributes.position.array;
+        pos[0]=p1.x; pos[1]=p1.y; pos[2]=p1.z;
+        pos[3]=p2.x; pos[4]=p2.y; pos[5]=p2.z;
+        line.geometry.attributes.position.needsUpdate = true;
+        if (line.material.isLineDashedMaterial) line.computeLineDistances();
+    }
+
+    // ── Main diagram update ───────────────────────────────────────────────────
+    function updateDiagram() {
+        const { X, Y, Z, f, showX, showY } = state;
+
+        // BUG FIX: pinhole projection — image coords are sign-inverted relative to world
+        // but for visual clarity the triangles show magnitude; projected point placed at (-x,-y,-f)
+        const xImg =  f * (X / Z);   // magnitude (positive for positive X)
+        const yImg =  f * (Y / Z);
+
+        // Actual projected position on image plane (behind COP, inverted)
+        const ptP  = new THREE.Vector3(X, Y, Z);
+        const ptp  = new THREE.Vector3(-xImg, -yImg, -f);
+        const O    = new THREE.Vector3(0, 0, 0);
+
+        pMesh.position.copy(ptP);
+        projMesh.position.copy(ptp);
+        imagePlaneMesh.position.z = -f;
+        gridHelper.position.z = -f;
+
+
+
+        // Main projection ray (extended slightly beyond P for clarity)
+        const rayEnd = ptP.clone().multiplyScalar(1.12);
+        setLine(mainRay, ptp, rayEnd);
+
+        // Optical axis
+        setLine(optAxis, new THREE.Vector3(0,0,-f - 12), new THREE.Vector3(0, 0, Z + 10));
+
+        // ── Y-Z triangles (in the YZ plane, x=0) ──────────────────────────────
+        // Large triangle: O, (0,0,Z), (0,Y,Z)
+        const yzBigBase = new THREE.Vector3(0, 0, Z);
+        const yzBigTop  = new THREE.Vector3(0, Y, Z);
+        setTriangle(triYZBig, O, yzBigBase, yzBigTop, showY);
+
+        // Small triangle: O, (0,0,-f), (0,-yImg,-f)  [image side, inverted]
+        const yzSmBase = new THREE.Vector3(0, 0, -f);
+        const yzSmTop  = new THREE.Vector3(0, -yImg, -f);
+        setTriangle(triYZSmall, O, yzSmBase, yzSmTop, showY);
+
+        // ── X-Z triangles (in the XZ plane, y=0) ──────────────────────────────
+        // BUG FIX: was sharing yzBigBase as a vertex — now uses own correct base
+        const xzBigBase = new THREE.Vector3(0, 0, Z);   // same Z depth, y=0
+        const xzBigTop  = new THREE.Vector3(X, 0, Z);
+        setTriangle(triXZBig, O, xzBigBase, xzBigTop, showX);
+
+        const xzSmBase = new THREE.Vector3(0, 0, -f);
+        const xzSmTop  = new THREE.Vector3(-xImg, 0, -f);
+        setTriangle(triXZSmall, O, xzSmBase, xzSmTop, showX);
+
+        // ── Drop lines from P/p to triangle vertices ───────────────────────────
+        setLine(dashPtoY, ptP, yzBigTop, showY);
+        setLine(dashPtoX, ptP, xzBigTop, showX);
+        setLine(dashptoY, ptp, yzSmTop,  showY);
+        setLine(dashptoX, ptp, xzSmTop,  showX);
+
+        // ── Labels ────────────────────────────────────────────────────────────
+        // Dynamic P and p labels with current values
+        lblP.div.textContent = 'P';
+        lblP.obj.position.set(X + 1.2, Y + 1.2, Z);
+
+        lblp.div.textContent = 'p';
+        lblp.obj.position.set(-xImg - 0.5, -yImg + 1.5, -f);
+
+        // Y-Z labels
+        lblY.obj.visible = showY;
+        lbly.obj.visible = showY;
+        if (showY) {
+            lblY.obj.position.set(-1.2, Y / 2, Z);
+            lbly.obj.position.set(-1.2, -yImg / 2, -f);
+        }
+
+        // X-Z labels
+        lblX.obj.visible = showX;
+        lblx.obj.visible = showX;
+        if (showX) {
+            lblX.obj.position.set(X / 2, -1.5, Z);
+            lblx.obj.position.set(-xImg / 2, -1.5, -f);
+        }
+
+        // Z / f labels — only show when at least one triangle set is visible
+        const showZf = showX || showY;
+        lblZ.obj.visible = showZf;
+        lblf.obj.visible = showZf;
+        if (showZf) {
+            lblZ.obj.position.set(1.5, 0, Z / 2);
+            lblf.obj.position.set(1.5, 0, -f / 2);
+        }
+
+        // Fixed labels
+        lblCOP.obj.position.set(0.5, -1.8, 0);
+        lblOptAxis.obj.position.set(0, -1.2, Z + 8);
+        lblImgPlane.obj.position.set(0, 16, -f);
+
+        // Camera obscura
+        updateBox();
+    }
+
+    // ── Resize handler ────────────────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        // controls does not need explicit resize — it reads domElement size at interaction time
+    });
+
+    // ── Render loop ───────────────────────────────────────────────────────────
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+    }
+
+    syncInitialState();
+    updateDiagram();
+    animate();
+};
+</script>
 </body>
 </html>
