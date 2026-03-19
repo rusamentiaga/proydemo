@@ -181,6 +181,14 @@
             font-size: 0.82rem;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
+
+        @media (max-width: 768px) {
+            #math-panel,
+            #controls-panel,
+            #instructions {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -234,7 +242,7 @@
             </label>
         </div>
         <div class="control-group">
-            <label class="toggle-row" style="color:#4a5270; font-weight:bold;">
+            <label class="toggle-row" style="color:#777777; font-weight:bold;">
                 <input type="checkbox" id="showBox" checked>
                 <span>Show Camera Obscura</span>
             </label>
@@ -587,9 +595,9 @@ window.onload = function () {
     // Sensor size is constant; only depth (f) changes.
 
     const boxMats = {
-        wall:  new THREE.MeshBasicMaterial({ color: 0x6b7a99, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }),
-        screen:new THREE.MeshBasicMaterial({ color: 0xddeeff, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
-        edge:  new THREE.LineBasicMaterial({ color: 0x8896b8, transparent: true, opacity: 0.8 }),
+        wall:  new THREE.MeshBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
+        screen:new THREE.MeshBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }),
+        edge:  new THREE.LineBasicMaterial({ color: 0xbbbbbb, transparent: true, opacity: 0.8 }),
     };
 
     // Helper: create one rectangular face as a Mesh + outline
@@ -937,18 +945,15 @@ window.onload = function () {
         const w = window.innerWidth;
         const h = window.innerHeight;
 
-        // 1. Render WebGL scene into its buffer
         renderer.render(scene, camera);
 
-        // 2. Rasterise the CSS2D label overlay with html2canvas
         html2canvas(labelRenderer.domElement, {
-            backgroundColor: null, // transparent
+            backgroundColor: null,
             width: w,
             height: h,
             scale: window.devicePixelRatio,
             logging: false,
         }).then(labelCanvas => {
-            // 3. Composite: WebGL bottom, labels on top
             const out = document.createElement('canvas');
             out.width  = w * window.devicePixelRatio;
             out.height = h * window.devicePixelRatio;
@@ -956,7 +961,6 @@ window.onload = function () {
             ctx.drawImage(renderer.domElement, 0, 0);
             ctx.drawImage(labelCanvas, 0, 0);
 
-            // 4. Download
             const a = document.createElement('a');
             a.download = 'pinhole_projection.png';
             a.href = out.toDataURL('image/png');
@@ -984,9 +988,18 @@ window.onload = function () {
             // ── Save ──────────────────────────────────────────────────────────
             case 's': case 'S': downloadPNG(); break;
 
+            // ── Toggle system labels (undocumented) ───────────────────────────
+            case 'h': case 'H': {
+                const v = !lblCOP.obj.visible;
+                lblCOP.obj.visible = v;
+                lblOptAxis.obj.visible = v;
+                lblImgPlane.obj.visible = v;
+                break;
+            }
+
             // ── Preset views ──────────────────────────────────────────────────
             case '1': // Perspective (default)
-                setView(new THREE.Vector3(35, 20, 25)); break;
+                setView(new THREE.Vector3(-35, 20, 25)); break;
             case '2': // Top (XZ plane, looking down)
                 setView(new THREE.Vector3(0, CAM_DIST, TARGET.z)); break;
             case '3': // Front (XY plane, looking along +Z)
